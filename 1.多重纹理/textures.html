@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>多重纹理绘制-纹理坐标关系</title>
+  <script src="../assets/glMatrix-0.9.6.min.js"></script>
+  <script>
+    let webgl
+
+    const projMat4 = mat4.create()
+
+    let attribOutUV
+
+    let uniformTexture = 0
+    let uniformTexture1 = 0
+    let texture0
+    let texture1
+
+    let uniformAnim
+
+    let count = 0
+
+    const vertexString = `
+    attribute vec4 a_position;
+    uniform mat4 proj;
+    attribute vec2 outUV;
+    varying vec2 inUV;
+    void main() {
+      gl_Position = a_position;
+      inUV = outUV;
+    }
+    ` // 定义了一个vec2的变量 outUV，用来接收外部传来的UV坐标
+    // 再定义一个vec2的变量 inUV，用来接收outUV并传给片元着色器
+
+    const fragmentString = `
+    precision mediump float;
+    uniform sampler2D texture;
+    uniform sampler2D texture1;
+    uniform float anim;
+    varying vec2 inUV;
+    void main() {
+      vec4 color1 = texture2D(texture, inUV);
+      vec4 color2 = texture2D(texture1, vec2(inUV.x + anim, inUV.y));
+
+      gl_FragColor = color1 + color2;
+    }
+    ` // 定义了两个纹理，texture和texture1
+    // 其中texture纹理坐标根据传进来的值而定，texture1会根据inUV和anim两个值而定
+    // anim一直变，就会让纹理动起来
+
+    function webglStart () {
+      init()
+      tick()
+    }
+
+    function tick() {
+      requestAnimationFrame(tick)
+      draw()
+    }
+
+    function init() {
+      initWebgl()
+      initShader()
+      initBuffer()
+    }
+
+    function initWebgl () {
+      const canvas = document.getElementById('myCanvas')
+      webgl = canvas.getContext('webgl')
+      webgl.viewport(0, 0, canvas.clientWidth, canvas.clientHeight)
+      mat4.ortho(0, canvas.clientWidth, canvas.clientHeight, 0, -1, 1, projMat4)
+    }
+
+    function initShader () {
+      const vsshader = webgl.createShader(webgl.VERTEX_SHADER)
+      const fsshader = webgl.createShader(webgl.FRAGMENT_SHADER)
+
+      webgl.shaderSource(vsshader, vertexString)
+      webgl.shaderSource(fsshader, fragmentString)
+
+      webgl.compileShader(vsshader)
+      webgl.compileShader(fsshader)
+
+      if (!webgl.getShaderParameter(vsshader, webgl.COMPILE_STATUS)) {
+        const err = webgl.getShaderInfoLog(vsshader)
+        alert(err)
+        return
+      }
+      if (!webgl.getShaderParameter(fsshader, webgl.COMPILE_STATUS)) {
+        const err = webgl.getShaderInfoLog(fsshader)
+        alert(err)
+        return
+      }
+
+      const program = webgl.createProgram()
+
+      webgl.attachShader(program, vsshader)
+      webgl.attachShader(program, fsshader)
+
+      webgl.linkProgram(program)
+
+      if (!webgl.getProgramParameter(program, webgl.LINK_STATUS)) {
+        const err = webgl.getProgramInfoLog(program)
+        console.log('projerr');
+        alert(err)
+        return
+      }
+
+      webgl.useProgram(program)
+
+      webgl.program = program
+    }
+
+    let arr = [
+      -0.5, -0.5, 0, 1,   0, 0,
+      -0.5, 0.5, 0, 1,    0, 1,
+      0.5, 0.5, 0, 1,   1, 1,
+      0.5, -0.5, 0, 1,    1, 0,
+    ]
+    function initBuffer () {
+      let index = [
+        0, 1, 2,
+        2, 0, 3
+      ]
+      const pointPosition = new Float32Array(arr)
+
+      const triangleBuffer = webgl.createBuffer()
+      webgl.bindBuffer(webgl.ARRAY_BUFFER, triangleBuffer)
+      webgl.bufferData(webgl.ARRAY_BUFFER, pointPosition, webgl.STATIC_DRAW)
+
+
+      const aPosition = webgl.getAttribLocation(webgl.program, 'a_position')
+      webgl.enableVertexAttribArray(aPosition)
+      webgl.vertexAttribPointer(aPosition, 4, webgl.FLOAT, false, 6 * 4, 0)
+
+
+      const uniformProj = webgl.getUniformLocation(webgl.program, 'proj')
+      webgl.uniformMatrix4fv(uniformProj, false, projMat4)
+
+      // 获取outUV，将坐标赋值给它
+      attribOutUV = webgl.getAttribLocation(webgl.program, 'outUV')
+      webgl.enableVertexAttribArray(attribOutUV)
+      webgl.vertexAttribPointer(attribOutUV, 2, webgl.FLOAT, false, 6 * 4, 4 * 4)
+
+      // 索引缓冲区
+      let indexArr = new Uint8Array(index)
+      let indexBuffer = webgl.createBuffer()
+      webgl.bindBuffer(webgl.ELEMENT_ARRAY_BUFFER, indexBuffer)
+      webgl.bufferData(webgl.ELEMENT_ARRAY_BUFFER, indexArr, webgl.STATIC_DRAW)
+
+      // 获取片元着色器中纹理变量，方便后续对纹理操作
+      uniformTexture = webgl.getUniformLocation(webgl.program, 'texture');
+      uniformTexture1 = webgl.getUniformLocation(webgl.program, 'texture1');
+
+      // 加载纹理图片
+      texture0 = initTexture('./fog.png')
+      texture1 = initTexture('./山水图像纹理映射.png')
+    }
+
+    // 配置纹理
+    function handleLoadedTexture (texture) {
+      webgl.bindTexture(webgl.TEXTURE_2D, texture)
+      webgl.pixelStorei(webgl.UNPACK_FLIP_Y_WEBGL, 666) // 将y坐标翻转
+
+      webgl.texImage2D(webgl.TEXTURE_2D, 0, webgl.RGBA, webgl.RGBA, webgl.UNSIGNED_BYTE, texture.image)
+      webgl.texParameteri(webgl.TEXTURE_2D, webgl.TEXTURE_MAG_FILTER, webgl.LINEAR);
+      webgl.texParameteri(webgl.TEXTURE_2D, webgl.TEXTURE_MIN_FILTER, webgl.LINEAR);
+      webgl.texParameteri(webgl.TEXTURE_2D, webgl.TEXTURE_WRAP_S, webgl.REPEAT);
+      webgl.texParameteri(webgl.TEXTURE_2D, webgl.TEXTURE_WRAP_T, webgl.REPEAT);
+    }
+
+
+    // 初始化纹理
+    function initTexture(imageFile, num) {
+      let textureHandle = webgl.createTexture();
+      textureHandle.image = new Image()
+      textureHandle.image.src = imageFile
+      textureHandle.image.onload = function () {
+        handleLoadedTexture(textureHandle, num)
+      }
+      return textureHandle
+    }
+
+    function draw () {
+      webgl.clearColor(1.0, 0.0, 0.0, 1.0)
+      webgl.clear(webgl.COLOR_BUFFER_BIT | webgl.DEPTH_BUFFER_BIT)
+      webgl.enable(webgl.DEPTH_TEST)
+
+      // 纹理变动
+      // 先获取anim变量
+      uniformAnim = webgl.getUniformLocation(webgl.program, 'anim')
+      count += 0.01
+      // 每次count+0.01，然后赋值给anim变量
+      webgl.uniform1f(uniformAnim, count)
+
+      // 激活第0层纹理
+      webgl.activeTexture(webgl.TEXTURE0)
+      // 绑定texture0纹理
+      webgl.bindTexture(webgl.TEXTURE_2D, texture0)
+      // 赋值给第0层纹理
+      webgl.uniform1i(uniformTexture, 0)
+
+      // 激活第1层纹理
+      webgl.activeTexture(webgl.TEXTURE1)
+      // 绑定texture1纹理
+      webgl.bindTexture(webgl.TEXTURE_2D, texture1)
+      // 赋值给第1层纹理
+      webgl.uniform1i(uniformTexture, 1)
+
+      // 绘制多个三角形（两个三角形，会拼成一个正方形）
+      webgl.drawElements(webgl.TRIANGLES, 6, webgl.UNSIGNED_BYTE, 0);
+
+    }
+  </script>
+</head>
+<body onload="webglStart()">
+  <canvas id="myCanvas" width="500" height="500"></canvas>
+</body>
+</html>
