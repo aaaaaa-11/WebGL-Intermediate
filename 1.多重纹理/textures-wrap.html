@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>纹理绘制api-水平垂直效果</title>
+  <script src="../assets/glMatrix-0.9.6.min.js"></script>
+  <script>
+    let webgls = []
+
+    const projMat4 = mat4.create()
+
+    let uniformTexture = [0, 0, 0]
+    let textures = []
+
+    const vertexString = `
+    attribute vec4 a_position;
+    uniform mat4 proj;
+    attribute vec2 outUV;
+    varying vec2 inUV;
+    void main() {
+      gl_Position = a_position;
+      inUV = outUV;
+    }
+    ` // 定义了一个vec2的变量 outUV，用来接收外部传来的UV坐标
+    // 再定义一个vec2的变量 inUV，用来接收outUV并传给片元着色器
+
+    const fragmentString = `
+    precision mediump float;
+    uniform sampler2D texture;
+    varying vec2 inUV;
+    void main() {
+      gl_FragColor = texture2D(texture, inUV);
+    }
+    `
+
+    function init() {
+      for (let i = 0; i <= 2; i++) {
+        initWebgl(i)
+        initShader(i)
+        initBuffer(i)
+      }
+    }
+
+    function initWebgl (idx) {
+      const canvas = document.getElementById(`myCanvas${idx}`)
+      webgls[idx] = canvas.getContext('webgl')
+      webgls[idx].viewport(0, 0, canvas.clientWidth, canvas.clientHeight)
+      mat4.ortho(0, canvas.clientWidth, canvas.clientHeight, 0, -1, 1, projMat4)
+    }
+
+    function initShader (idx) {
+      const webgl = webgls[idx]
+      const vsshader = webgl.createShader(webgl.VERTEX_SHADER)
+      const fsshader = webgl.createShader(webgl.FRAGMENT_SHADER)
+
+      webgl.shaderSource(vsshader, vertexString)
+      webgl.shaderSource(fsshader, fragmentString)
+
+      webgl.compileShader(vsshader)
+      webgl.compileShader(fsshader)
+
+      if (!webgl.getShaderParameter(vsshader, webgl.COMPILE_STATUS)) {
+        const err = webgl.getShaderInfoLog(vsshader)
+        alert(err)
+        return
+      }
+      if (!webgl.getShaderParameter(fsshader, webgl.COMPILE_STATUS)) {
+        const err = webgl.getShaderInfoLog(fsshader)
+        alert(err)
+        return
+      }
+
+      const program = webgl.createProgram()
+
+      webgl.attachShader(program, vsshader)
+      webgl.attachShader(program, fsshader)
+
+      webgl.linkProgram(program)
+
+      if (!webgl.getProgramParameter(program, webgl.LINK_STATUS)) {
+        const err = webgl.getProgramInfoLog(program)
+        console.log('projerr');
+        alert(err)
+        return
+      }
+
+      webgl.useProgram(program)
+
+      webgl.program = program
+    }
+
+    function initBuffer (idx) {
+      const arr = idx === 2
+      ? [
+        -1, -1, 0, 1,   0, 0,
+        -1, 1, 0, 1,    0, 0.5,
+        1, 1, 0, 1,   0.5, 0.5,
+        1, -1, 0, 1,    0.5, 0,
+      ]
+      : [
+        -1, -1, 0, 1,   0, 0,
+        -1, 1, 0, 1,    0, 2,
+        1, 1, 0, 1,   2, 2,
+        1, -1, 0, 1,    2, 0,
+      ]
+      const webgl = webgls[idx]
+      let index = [
+        0, 1, 2,
+        2, 0, 3
+      ]
+      const pointPosition = new Float32Array(arr)
+
+      const triangleBuffer = webgl.createBuffer()
+      webgl.bindBuffer(webgl.ARRAY_BUFFER, triangleBuffer)
+      webgl.bufferData(webgl.ARRAY_BUFFER, pointPosition, webgl.STATIC_DRAW)
+
+
+      const aPosition = webgl.getAttribLocation(webgl.program, 'a_position')
+      webgl.enableVertexAttribArray(aPosition)
+      webgl.vertexAttribPointer(aPosition, 4, webgl.FLOAT, false, 6 * 4, 0)
+
+
+      const uniformProj = webgl.getUniformLocation(webgl.program, 'proj')
+      webgl.uniformMatrix4fv(uniformProj, false, projMat4)
+
+      // 获取outUV，将坐标赋值给它
+      const attribOutUV = webgl.getAttribLocation(webgl.program, 'outUV')
+      webgl.enableVertexAttribArray(attribOutUV)
+      webgl.vertexAttribPointer(attribOutUV, 2, webgl.FLOAT, false, 6 * 4, 4 * 4)
+
+      // 索引缓冲区
+      let indexArr = new Uint8Array(index)
+      let indexBuffer = webgl.createBuffer()
+      webgl.bindBuffer(webgl.ELEMENT_ARRAY_BUFFER, indexBuffer)
+      webgl.bufferData(webgl.ELEMENT_ARRAY_BUFFER, indexArr, webgl.STATIC_DRAW)
+
+      // 获取片元着色器中纹理变量，方便后续对纹理操作
+      uniformTexture[idx] = webgl.getUniformLocation(webgl.program, 'texture');
+
+      // 加载纹理图片
+      textures[idx] = initTexture('./山水图像纹理映射.png', idx)
+    }
+
+    // 配置纹理
+    function handleLoadedTexture (texture, idx) {
+      const webgl = webgls[idx]
+      webgl.bindTexture(webgl.TEXTURE_2D, texture)
+      webgl.pixelStorei(webgl.UNPACK_FLIP_Y_WEBGL, 666) // 将y坐标翻转
+
+      webgl.texImage2D(webgl.TEXTURE_2D, 0, webgl.RGBA, webgl.RGBA, webgl.UNSIGNED_BYTE, texture.image)
+      webgl.texParameteri(webgl.TEXTURE_2D, webgl.TEXTURE_MAG_FILTER, webgl.LINEAR);
+      webgl.texParameteri(webgl.TEXTURE_2D, webgl.TEXTURE_MIN_FILTER, webgl.LINEAR);
+      webgl.texParameteri(webgl.TEXTURE_2D, webgl.TEXTURE_WRAP_S, [0, 2].includes(idx) ? webgl.REPEAT : webgl.CLAMP_TO_EDGE);
+      webgl.texParameteri(webgl.TEXTURE_2D, webgl.TEXTURE_WRAP_T, [0].includes(idx) ? webgl.REPEAT : webgl.CLAMP_TO_EDGE);
+      draw(idx)
+    }
+
+
+    // 初始化纹理
+    function initTexture(imageFile, idx) {
+      const webgl = webgls[idx]
+      let textureHandle = webgl.createTexture();
+      textureHandle.image = new Image()
+      textureHandle.image.src = imageFile
+      textureHandle.image.onload = function () {
+        handleLoadedTexture(textureHandle, idx)
+      }
+      return textureHandle
+    }
+
+    function draw (idx) {
+      const webgl = webgls[idx]
+      const texture = textures[idx]
+      webgl.clearColor(1.0, 0.0, 0.0, 1.0)
+      webgl.clear(webgl.COLOR_BUFFER_BIT | webgl.DEPTH_BUFFER_BIT)
+      webgl.enable(webgl.DEPTH_TEST)
+
+      // 激活第0层纹理
+      webgl.activeTexture(webgl.TEXTURE0)
+      // 绑定texture0纹理
+      webgl.bindTexture(webgl.TEXTURE_2D, texture)
+      // 赋值给第0层纹理
+      webgl.uniform1i(uniformTexture[idx], 0)
+
+      webgl.drawElements(webgl.TRIANGLES, 6, webgl.UNSIGNED_BYTE, 0);
+    }
+  </script>
+</head>
+<body onload="init()">
+  <p style="text-align: center;">gl.TEXTURE_WRAP_S 水平填充方法</p>
+  <p style="text-align: center;">gl.TEXTURE_WRAP_T 垂直填充方法</p>
+  <div style="display: flex; width: 100%; flex-wrap: wrap; justify-content: space-around;">
+    <div>
+      <p>（UV坐标大于1时）水平、垂直均 gl.REPEAT：重复纹理</p>
+      <canvas id="myCanvas0" width="400" height="400"></canvas>
+    </div>
+    <div>
+      <p>（UV坐标大于1时）水平、垂直均 gl.CLAMP_TO_EDGE：靠边线绘制一次（边线填充绘制）</p>
+      <canvas id="myCanvas1" width="400" height="400"></canvas>
+    </div>
+    <div>
+      <p>（UV坐标小于1时）水平 gl.REPEAT，垂直 gl.CLAMP_TO_EDGE：均将纹理映射到平面的左上角</p>
+      <canvas id="myCanvas2" width="400" height="400"></canvas>
+    </div>
+  </div>
+</body>
+</html>
