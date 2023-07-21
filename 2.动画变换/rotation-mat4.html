@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>旋转</title>
+  <script src="../assets/glMatrix-0.9.6.min.js"></script>
+  <script>
+    let webgl
+
+    const projMat4 = mat4.create()
+
+    const vertexString = `
+    attribute vec4 a_position;
+    uniform mat4 u_formMatrix;
+    void main() {
+      gl_Position = u_formMatrix * a_position;
+    }
+    ` // 定义了一个4 * 4矩阵，和坐标向量相乘，得到旋转后的坐标
+
+    const fragmentString = `
+    void main() {
+      gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0);
+    }
+    `
+
+    let timer;
+
+    function start () {
+      init()
+      tick()
+    }
+
+    function tick () {
+      requestAnimationFrame(tick)
+      initBuffer()
+      draw()
+    }
+
+    function init() {
+      initWebgl()
+      initShader()
+    }
+
+    function initWebgl () {
+      const canvas = document.getElementById('myCanvas')
+      webgl = canvas.getContext('webgl')
+      webgl.viewport(0, 0, canvas.clientWidth, canvas.clientHeight)
+      mat4.ortho(0, canvas.clientWidth, canvas.clientHeight, 0, -1, 1, projMat4)
+    }
+
+    function initShader () {
+      const vsshader = webgl.createShader(webgl.VERTEX_SHADER)
+      const fsshader = webgl.createShader(webgl.FRAGMENT_SHADER)
+
+      webgl.shaderSource(vsshader, vertexString)
+      webgl.shaderSource(fsshader, fragmentString)
+
+      webgl.compileShader(vsshader)
+      webgl.compileShader(fsshader)
+
+      if (!webgl.getShaderParameter(vsshader, webgl.COMPILE_STATUS)) {
+        const err = webgl.getShaderInfoLog(vsshader)
+        alert(err)
+        return
+      }
+      if (!webgl.getShaderParameter(fsshader, webgl.COMPILE_STATUS)) {
+        const err = webgl.getShaderInfoLog(fsshader)
+        alert(err)
+        return
+      }
+
+      const program = webgl.createProgram()
+
+      webgl.attachShader(program, vsshader)
+      webgl.attachShader(program, fsshader)
+
+      webgl.linkProgram(program)
+
+      if (!webgl.getProgramParameter(program, webgl.LINK_STATUS)) {
+        const err = webgl.getProgramInfoLog(program)
+        console.log('projerr');
+        alert(err)
+        return
+      }
+
+      webgl.useProgram(program)
+
+      webgl.program = program
+    }
+
+    const arr = [
+      0, 0, 0, 1,
+      0, 0.05, 0, 1,
+      0.5, 0, 0, 1,
+
+      0.5, 0, 0, 1,
+      0, 0.05, 0, 1,
+      0.5, 0.05, 0, 1
+    ]
+    let count = 0
+    function initBuffer () {
+      const modelView = mat4.create()
+      mat4.identity(modelView)
+      mat4.rotate(modelView, Math.PI * 2 * count / (60 * 30), [0, 0, 1]) // 沿着z轴旋转60度
+      count++
+
+      const pointPosition = new Float32Array(arr)
+
+      const triangleBuffer = webgl.createBuffer()
+      webgl.bindBuffer(webgl.ARRAY_BUFFER, triangleBuffer)
+      webgl.bufferData(webgl.ARRAY_BUFFER, pointPosition, webgl.STATIC_DRAW)
+
+
+      const aPosition = webgl.getAttribLocation(webgl.program, 'a_position')
+      webgl.enableVertexAttribArray(aPosition)
+      webgl.vertexAttribPointer(aPosition, 4, webgl.FLOAT, false, 4 * 4, 0)
+
+
+      const uniformMatrix = webgl.getUniformLocation(webgl.program, 'u_formMatrix')
+      webgl.uniformMatrix4fv(uniformMatrix, false, modelView)
+    }
+
+    function draw () {
+      webgl.clearColor(1.0, 0.0, 0.0, 1.0)
+      webgl.clear(webgl.COLOR_BUFFER_BIT | webgl.DEPTH_BUFFER_BIT)
+
+      // 绘制多个三角形（两个三角形，会拼成一个长方形）
+      webgl.drawArrays(webgl.TRIANGLES, 0, arr.length / 4);
+    }
+  </script>
+</head>
+<body onload="start()">
+  <canvas id="myCanvas" width="500" height="500"></canvas>
+</body>
+</html>
