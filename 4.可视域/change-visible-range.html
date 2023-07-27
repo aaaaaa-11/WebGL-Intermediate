@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>动态改变可视域范围</title>
+  <script src="../assets/gl-matrix.js"></script>
+  <script>
+    let webgl
+
+    const { mat4 } = glMatrix
+
+    const vertexString = `
+    attribute vec4 a_position;
+    attribute vec4 a_color;
+    varying vec4 color;
+    uniform mat4 u_formMatrix;
+    void main() {
+      gl_Position = u_formMatrix * a_position;
+      color = a_color;
+    }
+    `
+
+    const fragmentString = `
+    precision mediump float;
+    varying vec4 color;
+    void main() {
+      gl_FragColor = color;
+    }
+    `
+
+    let near = 0
+    let far = 50
+
+    function init() {
+      initWebgl()
+      initShader()
+      initBuffer()
+      draw()
+
+      initText()
+
+      listenEvent()
+    }
+
+    function listenEvent() {
+      document.addEventListener('keydown', (event) => {
+        const keyCode = event.keyCode;
+        const charCode = String.fromCharCode(keyCode)
+        switch (charCode) {
+          case 'W':
+            near++
+            break
+          case 'S':
+            near--
+            break
+          case 'A':
+            far++
+            break
+          case 'D':
+            far--
+            break
+          default:
+            break
+        }
+        initText()
+        initBuffer()
+        draw()
+      })
+    }
+
+    function initText () {
+      // 初始化元素内容
+      const nearEl = document.getElementById('near')
+      const farEl = document.getElementById('far')
+      nearEl.innerHTML = near
+      farEl.innerHTML = far
+    }
+
+    function initWebgl () {
+      const canvas = document.getElementById('myCanvas')
+      webgl = canvas.getContext('webgl')
+      webgl.viewport(0, 0, canvas.clientWidth, canvas.clientHeight)
+    }
+
+    function initShader () {
+      const vsshader = webgl.createShader(webgl.VERTEX_SHADER)
+      const fsshader = webgl.createShader(webgl.FRAGMENT_SHADER)
+
+      webgl.shaderSource(vsshader, vertexString)
+      webgl.shaderSource(fsshader, fragmentString)
+
+      webgl.compileShader(vsshader)
+      webgl.compileShader(fsshader)
+
+      if (!webgl.getShaderParameter(vsshader, webgl.COMPILE_STATUS)) {
+        const err = webgl.getShaderInfoLog(vsshader)
+        alert(err)
+        return
+      }
+      if (!webgl.getShaderParameter(fsshader, webgl.COMPILE_STATUS)) {
+        const err = webgl.getShaderInfoLog(fsshader)
+        alert(err)
+        return
+      }
+
+      const program = webgl.createProgram()
+
+      webgl.attachShader(program, vsshader)
+      webgl.attachShader(program, fsshader)
+
+      webgl.linkProgram(program)
+
+      if (!webgl.getProgramParameter(program, webgl.LINK_STATUS)) {
+        const err = webgl.getProgramInfoLog(program)
+        console.log('projerr');
+        alert(err)
+        return
+      }
+
+      webgl.useProgram(program)
+
+      webgl.program = program
+    }
+
+    const arr = [
+      0, 70, -40, 1, 0.4, 1.0, 0, 1, // （x,y,z,w,r,g,b,a）
+      -50, -30, -40, 1, 0.4, 1.0, 0, 1,
+      50, -30, -40, 1, 0.4, 1.0, 0, 1,
+
+      50, 40, -20, 1, 1.0, 1.0, 0.4, 1,
+      -50, 40, -20, 1, 1.0, 1.0, 0.4, 1,
+      0.0, -60, -20, 1, 1.0, 1.0, 0.4, 1,
+
+      0.0, 50, 0.0, 1, 0.4, 0.4, 1.0, 1,
+      -50, -50, 0.0, 1, 0.4, 0.4, 1.0, 1,
+      50, -50, 0.0, 1, 0.4, 0.4, 1.0, 1,
+    ]
+    function initBuffer () {
+      const projMatrix = mat4.create();
+      mat4.identity(projMatrix);
+      mat4.ortho(projMatrix, -100, 100, -100, 100, near, far)
+
+      const pointPosition = new Float32Array(arr)
+
+      const triangleBuffer = webgl.createBuffer()
+      webgl.bindBuffer(webgl.ARRAY_BUFFER, triangleBuffer)
+      webgl.bufferData(webgl.ARRAY_BUFFER, pointPosition, webgl.STATIC_DRAW)
+
+
+      const aPosition = webgl.getAttribLocation(webgl.program, 'a_position')
+      webgl.enableVertexAttribArray(aPosition)
+      webgl.vertexAttribPointer(aPosition, 4, webgl.FLOAT, false, 8 * 4, 0)
+
+      // 将颜色赋值给shader
+      const aColor = webgl.getAttribLocation(webgl.program, 'a_color')
+      webgl.enableVertexAttribArray(aColor)
+      webgl.vertexAttribPointer(aColor, 4, webgl.FLOAT, false, 8 * 4, 4 * 4)
+
+      const uniformMatrix = webgl.getUniformLocation(webgl.program, 'u_formMatrix')
+      webgl.uniformMatrix4fv(uniformMatrix, false, projMatrix)
+    }
+
+    function draw () {
+      webgl.clearColor(0.0, 1.0, 1.0, 1.0)
+      webgl.clear(webgl.COLOR_BUFFER_BIT | webgl.DEPTH_BUFFER_BIT)
+
+      // 绘制多个三角形）
+      webgl.drawArrays(webgl.TRIANGLES, 0, arr.length / 8);
+    }
+  </script>
+</head>
+<body onload="init()">
+  <p>按上、下改变可视域范围：</p>
+  <canvas id="myCanvas" width="500" height="500"></canvas>
+  <p>near:
+    <span id="near"></span>
+  </p>far:
+    <span id="far"></span>
+  </p>
+</body>
+</html>
