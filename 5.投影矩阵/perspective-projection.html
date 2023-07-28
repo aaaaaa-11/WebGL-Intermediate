@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>动态改变可视域范围</title>
+  <title>透视投影</title>
   <script src="../assets/gl-matrix.js"></script>
   <script>
     let webgl
@@ -30,6 +30,9 @@
     }
     `
 
+    let canvas;
+
+    let angle = 100
     let near = 0
     let far = 50
 
@@ -50,15 +53,21 @@
         const charCode = String.fromCharCode(keyCode)
         switch (charCode) {
           case 'W':
-            near++
+            angle++
             break
           case 'S':
+            angle--
+            break
+          case 'Z':
+            near++
+            break
+          case 'X':
             near--
             break
-          case 'A':
+          case 'C':
             far++
             break
-          case 'D':
+          case 'V':
             far--
             break
           default:
@@ -72,14 +81,16 @@
 
     function initText () {
       // 初始化元素内容
+      const angleEl = document.getElementById('angle')
       const nearEl = document.getElementById('near')
       const farEl = document.getElementById('far')
+      angleEl.innerHTML = angle
       nearEl.innerHTML = near
       farEl.innerHTML = far
     }
 
     function initWebgl () {
-      const canvas = document.getElementById('myCanvas')
+      canvas = document.getElementById('myCanvas')
       webgl = canvas.getContext('webgl')
       webgl.viewport(0, 0, canvas.clientWidth, canvas.clientHeight)
     }
@@ -114,7 +125,6 @@
 
       if (!webgl.getProgramParameter(program, webgl.LINK_STATUS)) {
         const err = webgl.getProgramInfoLog(program)
-        console.log('projerr');
         alert(err)
         return
       }
@@ -140,7 +150,7 @@
     function initBuffer () {
       const projMatrix = mat4.create();
       mat4.identity(projMatrix);
-      mat4.ortho(projMatrix, -100, 100, -100, 100, near, far)
+      mat4.perspective(projMatrix, angle * Math.PI / 180, canvas.clientWidth / canvas.clientHeight, near, far)
 
       const pointPosition = new Float32Array(arr)
 
@@ -172,8 +182,10 @@
   </script>
 </head>
 <body onload="init()">
-  <p>按W、S、A、D改变可视域范围：</p>
+  <p>按W、S、A、D、Z、X、C、V改变可视域范围：</p>
   <canvas id="myCanvas" width="500" height="500"></canvas>
+  <p>angle:
+    <span id="angle"></span>
   <p>near:
     <span id="near"></span>
   </p>far:

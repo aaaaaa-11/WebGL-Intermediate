@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>动态改变可视域范围</title>
+  <title>正射投影</title>
   <script src="../assets/gl-matrix.js"></script>
   <script>
     let webgl
@@ -30,6 +30,8 @@
     }
     `
 
+    let _left = 100
+    let _top = 100
     let near = 0
     let far = 50
 
@@ -50,15 +52,27 @@
         const charCode = String.fromCharCode(keyCode)
         switch (charCode) {
           case 'W':
-            near++
+            _top++
             break
           case 'S':
-            near--
+            _top--
             break
           case 'A':
-            far++
+            _left++
             break
           case 'D':
+            _left--
+            break
+          case 'Z':
+            near++
+            break
+          case 'X':
+            near--
+            break
+          case 'C':
+            far++
+            break
+          case 'V':
             far--
             break
           default:
@@ -72,8 +86,12 @@
 
     function initText () {
       // 初始化元素内容
+      const leftEl = document.getElementById('left')
+      const topEl = document.getElementById('top')
       const nearEl = document.getElementById('near')
       const farEl = document.getElementById('far')
+      leftEl.innerHTML = _left
+      topEl.innerHTML = _top
       nearEl.innerHTML = near
       farEl.innerHTML = far
     }
@@ -114,7 +132,6 @@
 
       if (!webgl.getProgramParameter(program, webgl.LINK_STATUS)) {
         const err = webgl.getProgramInfoLog(program)
-        console.log('projerr');
         alert(err)
         return
       }
@@ -140,7 +157,7 @@
     function initBuffer () {
       const projMatrix = mat4.create();
       mat4.identity(projMatrix);
-      mat4.ortho(projMatrix, -100, 100, -100, 100, near, far)
+      mat4.ortho(projMatrix, -_left, _left, -_top, _top, near, far)
 
       const pointPosition = new Float32Array(arr)
 
@@ -172,8 +189,13 @@
   </script>
 </head>
 <body onload="init()">
-  <p>按W、S、A、D改变可视域范围：</p>
+  <p>按W、S、A、D、Z、X、C、V改变可视域范围：</p>
   <canvas id="myCanvas" width="500" height="500"></canvas>
+  <p>left:
+    <span id="left"></span>
+  </p>top:
+    <span id="top"></span>
+  </p>
   <p>near:
     <span id="near"></span>
   </p>far:
