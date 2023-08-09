@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>隐藏面消除</title>
+  <script src="../assets/gl-matrix.js"></script>
+  <script>
+    let webgl
+
+    const { mat4 } = glMatrix
+
+    const vertexString = `
+    attribute vec4 a_position;
+    attribute vec4 a_color;
+    varying vec4 color;
+    uniform mat4 u_formMatrix;
+    void main() {
+      gl_Position = u_formMatrix * a_position;
+      color = a_color;
+    }
+    `
+
+    const fragmentString = `
+    precision mediump float;
+    varying vec4 color;
+    void main() {
+      gl_FragColor = color;
+    }
+    `
+
+    let canvas;
+
+    let indexArr = ['红', '绿', '蓝']
+
+    let text = indexArr[0]
+
+    function init() {
+      initWebgl()
+      initShader()
+      initBuffer()
+      draw()
+
+      initText()
+
+      listenEvent()
+    }
+
+    function listenEvent() {
+      document.addEventListener('keydown', (event) => {
+        const keyCode = event.keyCode;
+        const charCode = String.fromCharCode(keyCode)
+        switch (charCode) {
+          case 'R':
+            text = '红'
+            break
+          case 'G':
+            text = '绿'
+            break
+          case 'B':
+            text = '蓝'
+            break
+          default:
+            break
+        }
+        const index = indexArr.indexOf(text)
+        indexArr.splice(index, 1)
+        indexArr.unshift(text)
+        initText()
+        initBuffer()
+        draw()
+      })
+    }
+
+    function initText () {
+      // 初始化元素内容
+      const triangleEl = document.getElementById('triangle')
+      triangleEl.innerHTML = indexArr
+    }
+
+    function initWebgl () {
+      canvas = document.getElementById('myCanvas')
+      webgl = canvas.getContext('webgl')
+      webgl.viewport(0, 0, canvas.clientWidth, canvas.clientHeight)
+    }
+
+    function initShader () {
+      const vsshader = webgl.createShader(webgl.VERTEX_SHADER)
+      const fsshader = webgl.createShader(webgl.FRAGMENT_SHADER)
+
+      webgl.shaderSource(vsshader, vertexString)
+      webgl.shaderSource(fsshader, fragmentString)
+
+      webgl.compileShader(vsshader)
+      webgl.compileShader(fsshader)
+
+      if (!webgl.getShaderParameter(vsshader, webgl.COMPILE_STATUS)) {
+        const err = webgl.getShaderInfoLog(vsshader)
+        alert(err)
+        return
+      }
+      if (!webgl.getShaderParameter(fsshader, webgl.COMPILE_STATUS)) {
+        const err = webgl.getShaderInfoLog(fsshader)
+        alert(err)
+        return
+      }
+
+      const program = webgl.createProgram()
+
+      webgl.attachShader(program, vsshader)
+      webgl.attachShader(program, fsshader)
+
+      webgl.linkProgram(program)
+
+      if (!webgl.getProgramParameter(program, webgl.LINK_STATUS)) {
+        const err = webgl.getProgramInfoLog(program)
+        alert(err)
+        return
+      }
+
+      webgl.useProgram(program)
+
+      webgl.program = program
+    }
+
+    // 红色三角形
+    const redTriangle = [
+      -70, -30, -80, 1,      1, 0, 0, 1,
+      50, -30, -80, 1,       1, 0, 0, 1,
+      -10, 70, -80, 1,      1, 0, 0, 1,
+    ]
+
+    // 绿色三角形
+    const greenTriangle = [
+      -50, -50, -40, 1,       0.0, 1.0, 0.0, 1,
+      50, -50, -40, 1,      0.0, 1.0, 0.0, 1,
+      30, 50, -40, 1,      0.0, 1.0, 0.0, 1,
+    ]
+
+    // 蓝色三角形
+    const blueTriangle = [
+      -30, -40, 0.0, 1,       0, 0.0, 1.0, 1,
+      50, -40, 0.0, 1,      0, 0.0, 1.0, 1,
+      10, 60, 0.0, 1,       0, 0.0, 1.0, 1,
+    ]
+
+    const indexObj = {
+      '红': redTriangle,
+      '绿': greenTriangle,
+      '蓝': blueTriangle,
+    }
+
+    function initBuffer () {
+      const arr = []
+      indexArr.forEach(triangle => {
+        console.log(triangle, indexObj[triangle]);
+        arr.push(...indexObj[triangle])
+      })
+
+      const pointPosition = new Float32Array(arr)
+
+      const triangleBuffer = webgl.createBuffer()
+      webgl.bindBuffer(webgl.ARRAY_BUFFER, triangleBuffer)
+      webgl.bufferData(webgl.ARRAY_BUFFER, pointPosition, webgl.STATIC_DRAW)
+
+
+      const aPosition = webgl.getAttribLocation(webgl.program, 'a_position')
+      webgl.enableVertexAttribArray(aPosition)
+      webgl.vertexAttribPointer(aPosition, 4, webgl.FLOAT, false, 8 * 4, 0)
+
+      // 将颜色赋值给shader
+      const aColor = webgl.getAttribLocation(webgl.program, 'a_color')
+      webgl.enableVertexAttribArray(aColor)
+      webgl.vertexAttribPointer(aColor, 4, webgl.FLOAT, false, 8 * 4, 4 * 4)
+
+      const modelMatrix = mat4.create()
+      mat4.identity(modelMatrix)
+      mat4.translate(modelMatrix, modelMatrix, [180, 0, 0])
+
+      const viewMatrix = mat4.create()
+      mat4.identity(viewMatrix)
+      mat4.lookAt(viewMatrix, [20, 0, 300], [0, 0, -90], [0, 1, 0])
+
+      const mvMatrix = mat4.create()
+      mat4.identity(mvMatrix)
+      mat4.multiply(mvMatrix, viewMatrix, modelMatrix)
+
+      const projMatrix = mat4.create();
+      mat4.identity(projMatrix);
+      mat4.perspective(projMatrix, Math.PI / 180, 500/500, 1, 1000)
+
+      const mvpMatrix = mat4.create();
+      mat4.identity(mvpMatrix);
+      mat4.multiply(mvpMatrix, projMatrix, mvMatrix)
+
+      const uniformMatrix = webgl.getUniformLocation(webgl.program, 'u_formMatrix')
+      webgl.uniformMatrix4fv(uniformMatrix, false, mvpMatrix)
+    }
+
+    function draw () {
+      webgl.clearColor(0.0, 1.0, 1.0, 1.0)
+      // 清除深度缓冲区
+      webgl.clear(webgl.COLOR_BUFFER_BIT | webgl.DEPTH_BUFFER_BIT)
+
+      // 开启深度测试
+      webgl.enable(webgl.DEPTH_TEST)
+
+      // 绘制多个三角形）
+      webgl.drawArrays(webgl.TRIANGLES, 3, indexArr.length * 3);
+    }
+  </script>
+</head>
+<body onload="init()">
+  <p>三个三角形的深度分别为：红色-80，绿色-40，蓝色0</p>
+  <p>按照深度正确的绘制顺序(先->后)应该是红,绿,蓝，即红色被绿色遮挡，绿色被蓝色遮挡</p>
+  <canvas id="myCanvas" width="500" height="500"></canvas>
+  <p>隐藏面消除，根据深度缓冲区解决深度冲突问题，不管绘制顺序怎么调整，遮挡关系符合图形深度</p>
+  <p>按R、G、B分别调整红、绿、蓝三个三角形的绘制顺序(先->后):
+    <span id="triangle"></span>
+  </p>
+</body>
+</html>

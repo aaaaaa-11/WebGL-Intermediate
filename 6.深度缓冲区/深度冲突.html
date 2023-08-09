@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>深度冲突</title>
+  <script src="../assets/gl-matrix.js"></script>
+  <script>
+    let webgl
+
+    const { mat4 } = glMatrix
+
+    const vertexString = `
+    attribute vec4 a_position;
+    attribute vec4 a_color;
+    varying vec4 color;
+    uniform mat4 u_formMatrix;
+    void main() {
+      gl_Position = u_formMatrix * a_position;
+      color = a_color;
+    }
+    `
+
+    const fragmentString = `
+    precision mediump float;
+    varying vec4 color;
+    void main() {
+      gl_FragColor = color;
+    }
+    `
+
+    let canvas;
+
+    function init() {
+      initWebgl()
+      initShader()
+      initBuffer()
+      draw()
+
+      initText()
+
+      listenEvent()
+    }
+
+    function listenEvent() {
+      document.addEventListener('keydown', (event) => {
+        const keyCode = event.keyCode;
+        const charCode = String.fromCharCode(keyCode)
+        switch (charCode) {
+          case 'R':
+            text = '红'
+            break
+          case 'G':
+            text = '绿'
+            break
+          case 'B':
+            text = '蓝'
+            break
+          default:
+            break
+        }
+        initText()
+        initBuffer()
+        draw()
+      })
+    }
+
+    function initText () {
+      // 初始化元素内容
+      const triangleEl = document.getElementById('triangle')
+    }
+
+    function initWebgl () {
+      canvas = document.getElementById('myCanvas')
+      webgl = canvas.getContext('webgl')
+      webgl.viewport(0, 0, canvas.clientWidth, canvas.clientHeight)
+    }
+
+    function initShader () {
+      const vsshader = webgl.createShader(webgl.VERTEX_SHADER)
+      const fsshader = webgl.createShader(webgl.FRAGMENT_SHADER)
+
+      webgl.shaderSource(vsshader, vertexString)
+      webgl.shaderSource(fsshader, fragmentString)
+
+      webgl.compileShader(vsshader)
+      webgl.compileShader(fsshader)
+
+      if (!webgl.getShaderParameter(vsshader, webgl.COMPILE_STATUS)) {
+        const err = webgl.getShaderInfoLog(vsshader)
+        alert(err)
+        return
+      }
+      if (!webgl.getShaderParameter(fsshader, webgl.COMPILE_STATUS)) {
+        const err = webgl.getShaderInfoLog(fsshader)
+        alert(err)
+        return
+      }
+
+      const program = webgl.createProgram()
+
+      webgl.attachShader(program, vsshader)
+      webgl.attachShader(program, fsshader)
+
+      webgl.linkProgram(program)
+
+      if (!webgl.getProgramParameter(program, webgl.LINK_STATUS)) {
+        const err = webgl.getProgramInfoLog(program)
+        alert(err)
+        return
+      }
+
+      webgl.useProgram(program)
+
+      webgl.program = program
+    }
+
+    const arr = [
+      0.0, 50, -60.0, 1,      0.4,  0.4, 1.0, 1,
+      -50, -100, -60.0, 1,     0.4,  0.4, 1.0, 1,
+      50, -100, -60.0, 1,      0.4, 0.4, 1.0, 1, // 蓝色
+
+
+      0, 60, -60, 1,       1.0, 1.0,  0.4, 1,
+      -50, -100, -60, 1,      1.0, 1.0,  0.4, 1,
+      50, -100,-60, 1,      1.0, 1.0,  0.4, 1,// 黄色
+    ]
+    function initBuffer () {
+
+      const pointPosition = new Float32Array(arr)
+
+      const triangleBuffer = webgl.createBuffer()
+      webgl.bindBuffer(webgl.ARRAY_BUFFER, triangleBuffer)
+      webgl.bufferData(webgl.ARRAY_BUFFER, pointPosition, webgl.STATIC_DRAW)
+
+
+      const aPosition = webgl.getAttribLocation(webgl.program, 'a_position')
+      webgl.enableVertexAttribArray(aPosition)
+      webgl.vertexAttribPointer(aPosition, 4, webgl.FLOAT, false, 8 * 4, 0)
+
+      // 将颜色赋值给shader
+      const aColor = webgl.getAttribLocation(webgl.program, 'a_color')
+      webgl.enableVertexAttribArray(aColor)
+      webgl.vertexAttribPointer(aColor, 4, webgl.FLOAT, false, 8 * 4, 4 * 4)
+
+      const projMatrix = mat4.create();
+      mat4.identity(projMatrix);
+      mat4.ortho(projMatrix, -100, 100, -100, 100, 0, 100)
+
+
+      const uniformMatrix = webgl.getUniformLocation(webgl.program, 'u_formMatrix')
+      webgl.uniformMatrix4fv(uniformMatrix, false, projMatrix)
+    }
+
+    function draw () {
+      webgl.clearColor(0.0, 1.0, 1.0, 1.0)
+      // 清除深度缓冲区
+      webgl.clear(webgl.COLOR_BUFFER_BIT || webgl.DEPTH_BUFFER_BIT)
+
+      // 开启深度测试
+      webgl.enable(webgl.DEPTH_TEST)
+
+      // 绘制多个三角形）
+      webgl.enable(webgl.POLYGON_OFFSET_FILL);
+
+      webgl.drawArrays(webgl.TRIANGLES, 0, 3);
+      webgl.polygonOffset(1.0, 1.0);
+      webgl.drawArrays(webgl.TRIANGLES, 0, 6);
+    }
+  </script>
+</head>
+<body onload="init()">
+  <canvas id="myCanvas" width="500" height="500"></canvas>
+</body>
+</html>
